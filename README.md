@@ -79,14 +79,6 @@ Without a scratch space, editors either stop experimenting (losing creative bene
 - No clip only assembled in `99_scratch` should be referenced in `00_MASTER`.
 - The scratch library can be wiped. Accept this.
 
-### The Moral Center
-
-Before the first cut, write one sentence in your own handwriting describing where your camera stands morally in relation to your subject. Pin it above the editing station.
-
-When a cut isn't working and you cannot identify why, re-read the sentence before looking at the technical problem. Editorial decisions accumulate over 20 months. The moral center of a film drifts imperceptibly, cut by cut. A written sentence, revisited regularly, functions as a correction mechanism.
-
-Revise it deliberately at months 8 and 12. Do not let it drift passively.
-
 ### Discipline Over 20 Months
 
 The team at month 18 is not the team at month 2. By month 18: one editor may have left and been replaced, discipline around commit protocols will have eroded, the merge assistant will have developed shortcuts that bypass written protocols, the AI pipeline will have encountered at least one major software version that broke a critical component.
