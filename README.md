@@ -1,19 +1,6 @@
-# An Independent Documentary Post-Production Blueprint: AI-Orchestrated 5-Person Pipeline with Final Cut Pro, ComfyUI, and DaVinci Resolve
+# Hybrid Film Post-Production Pipeline: AI-Orchestrated 5-Person Team with Final Cut Pro, ComfyUI, and DaVinci Resolve
 
-> **License**: [Creative Commons BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/)
-> **Version**: 2.0
-> **Context**: Long-form documentary post-production, 18-24 months, multi-persona subject, archival material, experimental VFX, 3-platform delivery (festival DCP, streaming, Netflix HDR).
-> **Note**: Built for one specific project and published as-is. Not a product, not a service. Take what's useful.
-
----
-
-## Overview
-
-This blueprint documents an AI-orchestrated post-production architecture for an independent documentary with a small team (3-5 editors), significant archival material, experimental AI-generated visuals, and multi-platform delivery requirements.
-
-The central thesis: an independent filmmaker in 2026 can orchestrate a pipeline that replaces approximately 9 traditional human roles using a combination of local and API-based AI tools -- provided the filmmaker accepts that the most critical decisions remain irreducibly human.
-
-**What this covers:** full software stack, hardware infrastructure, 9-phase AI logging pipeline, collaboration protocols for 5 editors, delivery chain, legal and budget blind spots, risk management.
+5-person team, 18-24 months, archival material + AI-generated visuals, 3-platform delivery (festival DCP, streaming, Netflix HDR). FCP 12.2 as hub NLE, ComfyUI on GPU rig for visual generation, Resolve for final grade and IMF delivery, Claude Code as orchestration layer.
 
 ---
 
@@ -603,6 +590,4 @@ FCP runs only on macOS. Mitigation: maintain ACES working space throughout, keep
 
 ---
 
-Built in April 2026 by [Ismaël Joffroy Chandoutis](https://ismaeljoffroychandoutis.com/) (filmmaker, Paris) for one specific film. Published because it might be useful to someone else.
-
-[CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/)
+[Ismaël Joffroy Chandoutis](https://ismaeljoffroychandoutis.com/) — Paris, 2026
