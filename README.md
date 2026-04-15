@@ -133,8 +133,9 @@ The team at month 18 is not the team at month 2. By month 18: one editor may hav
 |------|------|
 | ComfyUI (Flux.2, Wan 2.2, LTX-2) | AI-generated visuals, reconstruction sequences, experimental VFX |
 | Blender 4.4 + Pallaidium | 3D, AI generation inside VSE |
+| Unity 6 LTS | Fallback if Blender is unavailable or insufficient for a specific 3D task |
 
-**Not used**: Adobe Firefly (cloud-dependent subscription), After Effects (Motion + Resolve covers the use cases), CapCut (no professional delivery path), LTX Studio (cloud-dependent), Unity / Godot / Unreal (no real-time interactive elements in this pipeline), Davinci Resolve as primary NLE (see trade-offs).
+**Not used**: Adobe Firefly (cloud-dependent subscription), After Effects (Motion + Resolve covers the use cases), CapCut (no professional delivery path), LTX Studio (cloud-dependent), Godot / Unreal (no real-time interactive elements in this pipeline), Resolve as primary NLE (see trade-offs).
 
 #### Claude Code + MCP Layer
 
