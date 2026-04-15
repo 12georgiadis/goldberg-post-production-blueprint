@@ -4,6 +4,7 @@
 > **Version**: 2.0
 > **Context**: Long-form documentary post-production, 18-24 months, multi-persona subject, archival material, experimental VFX, 3-platform delivery (festival DCP, streaming, Netflix HDR).
 > **Audience**: Independent filmmakers navigating complex documentary post-production without a large studio infrastructure.
+> **Note**: Built for one specific project and published as-is. Not a product, not a service. Take what's useful.
 
 ---
 
@@ -30,24 +31,6 @@ The central thesis: an independent filmmaker in 2026 can orchestrate a pipeline 
 - Contractual specifics with distributors
 
 **Estimated timeline context**: this document was stress-tested for a 20-month post-production period. Shorter productions will find it over-engineered; longer productions will need to extend the discipline protocols in Part IV.
-
----
-
-## A Note on Ethics
-
-This document is deliberately silent on the ethics of your specific subject. That silence is not an oversight -- it is structural.
-
-The council review process that validated this blueprint (see Appendix) flagged this with force: a technical architecture without a parallel ethical architecture is not a production plan. It is a production hazard.
-
-**Before using any section of this document, you need a separate ETHICS document of equivalent length covering:**
-
-- Ongoing consent protocols with your subject (at what cadence? what right of withdrawal?)
-- The status of third parties affected by your material
-- Security of sensitive footage against leaks that could be weaponized
-- Psychological exposure of the filmmaker after 20 months in difficult material
-- A core ethical question about your film: will this document ask the audience to remain in discomfort, or will it relieve them? This choice is not aesthetic. It determines everything.
-
-The architecture in this document makes no film better or worse ethically. It only makes it faster and more organized.
 
 ---
 
@@ -765,53 +748,6 @@ AI-generated visuals (reconstruction sequences, experimental material) are one o
 
 ---
 
-## Appendix: Council Review Process (LLM-Based Editorial Review)
-
-The council review process used to develop and validate this blueprint is available as a standalone methodology for documentary development.
-
-### What It Is
-
-A structured multi-voice LLM review session in which a document (script, blueprint, rough cut description) is submitted to several distinct AI editorial personas, each applying a different critical framework. The goal is not consensus but coverage: identifying blind spots that a single reviewer would miss.
-
-### The Council for This Blueprint
-
-This blueprint was reviewed by three editorial personas:
-
-**Persona 1 (Ethical filmmaker / process observer)**: focused on what the document does not say about the human and ethical dimensions of the work. Identified the No-AI Zone, the Scratch Library, the Moral Center, and the need for a separate ethics document.
-
-**Persona 2 (Operational editor / long-term production veteran)**: focused on what will break in production practice. Identified the audio rolemap failure, the 6th Role gap, the library sync protocol problem, the SpliceKit fragility, and the importance of the no-AI write rule.
-
-**Persona 3 (Producer / financier perspective)**: focused on what is missing from the business and legal layer. Identified the budget blind spots, the E&O gap, the colorist single-point-of-failure, the clearance log absence, and the timeline buffer.
-
-### How to Run a Council Review
-
-1. Write the document you want reviewed.
-2. For each council persona, write a 200-400 word system prompt defining their critical framework, background, and the specific question they are asked to answer (e.g., "What is the most important thing this document does not address?").
-3. Submit the document to each persona independently. Do not let one persona's output influence another.
-4. Read all responses before synthesizing.
-5. Synthesize convergent findings (items multiple personas flagged independently) as the highest-priority issues.
-6. Revise the document. Repeat if the revision is substantial.
-
-### Recommended Persona Frameworks for Documentary Projects
-
-- **Process observer**: a filmmaker known for rigorous ethical documentation practices (think Frederick Wiseman's relationship to consent, or Errol Morris's relationship to reconstruction)
-- **Operational editor**: a veteran editor of long-form documentary with experience in collaborative multi-editor workflows
-- **Producer**: a producer known for navigating complex rights and delivery requirements
-- **Distributor**: a documentary acquisitions executive focused on what makes a film deliverable and insurable
-- **Subject advocate**: a critic or ethicist who advocates for the subjects of documentary filmmaking
-
-The specific personas you choose should be calibrated to the blind spots most likely in your particular project. A technically rigorous filmmaker may need a stronger producer voice. A producer-filmmaker may need a stronger process voice.
-
-### Limitations
-
-The council review process has known failure modes:
-
-- LLM personas tend toward comprehensiveness. They will flag things that are actually covered elsewhere. Read critically.
-- A persona's critique reflects the training data behind it. It may not know about recent changes in delivery specifications, insurance requirements, or software capabilities. Verify independently.
-- Consensus across personas does not guarantee correctness. It increases confidence, not certainty.
-
-The council review is a structured method for identifying blind spots. It does not replace legal counsel, production experience, or your own judgment.
-
 ---
 
 ## Related Resources
@@ -827,8 +763,6 @@ The council review is a structured method for identifying blind spots. It does n
 
 ## Credits
 
-Developed in April 2026 by [Ismaël Joffroy Chandoutis](https://ismaeljoffroychandoutis.com/) (filmmaker, Paris) in conversation with Claude (Anthropic), synthesizing production research and AI pipeline work across multiple documentary projects.
+Built in April 2026 by [Ismaël Joffroy Chandoutis](https://ismaeljoffroychandoutis.com/) (filmmaker, Paris) for one specific film. Published because it might be useful to someone else.
 
-Published under [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/). Use freely, adapt for your project, credit the source, and share derivatives under the same terms.
-
-Issues, corrections, and war stories welcome.
+Published under [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/).
