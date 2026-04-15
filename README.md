@@ -35,7 +35,7 @@
    + Color Finale 2 Pro        ComfyUI + Flux.2           HDR reference monitor
    + BRAW Toolbox              Blender 4.4                ACES 1.3 ACEScct
    + Motion + Logic Pro        Pallaidium                 CDL export → FCP
-   + Compressor + Pixelmator   Unity 6 (backup)
+   + Compressor + Pixelmator
    Claude Code orchestration   → ProRes 4444 to NAS
    NVMe shuttle (local canon)
              │
@@ -132,10 +132,9 @@ The team at month 18 is not the team at month 2. By month 18: one editor may hav
 | Tool | Role |
 |------|------|
 | ComfyUI (Flux.2, Wan 2.2, LTX-2) | AI-generated visuals, reconstruction sequences, experimental VFX |
-| Blender 4.4 + Pallaidium | 3D, specific cases, AI generation inside VSE |
-| Unity 6 LTS | Backup for real-time interactive elements |
+| Blender 4.4 + Pallaidium | 3D, AI generation inside VSE |
 
-**Explicitly excluded**: Adobe Firefly (cloud-dependent subscription), After Effects (Motion + Resolve covers the use cases), CapCut (no professional delivery path), LTX Studio (cloud-dependent).
+**Not used**: Adobe Firefly (cloud-dependent subscription), After Effects (Motion + Resolve covers the use cases), CapCut (no professional delivery path), LTX Studio (cloud-dependent), Unity / Godot / Unreal (no real-time interactive elements in this pipeline), Davinci Resolve as primary NLE (see trade-offs).
 
 #### Claude Code + MCP Layer
 
