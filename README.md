@@ -584,7 +584,7 @@ The lead editor cannot function simultaneously as merge integrator and creative 
 }
 ```
 
-Any editor who needs to work on a clip that appears in another library checks LOCKS.md first. Locks are released by the merge assistant after successful integration.
+Any editor who needs to work on a clip that appears in another library checks LOCKS.md first. Locks are released by the merge assistant after successful integration. When two editors have worked on conflicting versions of the same clip, the merge assistant has final authority on which version enters `00_MASTER`.
 
 #### Snapshots
 
@@ -657,7 +657,6 @@ For documentaries making factual claims (dates, quotes, legal records, biographi
 
 1. A designated fact-checker reviews all factual claims before picture lock.
 2. The fact-check process is documented (what was checked, what sources were used, what was changed).
-3. The production company formally signs off on the fact-check before delivery.
 
 Netflix and other streamers increasingly require this documentation as a delivery requirement. Building the protocol into your production workflow from the beginning is far less disruptive than retrofitting it at delivery.
 
