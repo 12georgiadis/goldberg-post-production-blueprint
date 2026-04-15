@@ -134,7 +134,6 @@ The team at month 18 is not the team at month 2. By month 18: one editor may hav
 | ComfyUI (Flux.2, Wan 2.2, LTX-2) | AI-generated visuals, reconstruction sequences, experimental VFX |
 | Blender 4.4 + Pallaidium | 3D, specific cases, AI generation inside VSE |
 | Unity 6 LTS | Backup for real-time interactive elements |
-| Godot 4.3 | Backup for lightweight interactive experiences |
 
 **Explicitly excluded**: Adobe Firefly (cloud-dependent subscription), After Effects (Motion + Resolve covers the use cases), CapCut (no professional delivery path), LTX Studio (cloud-dependent).
 
