@@ -8,7 +8,7 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│                    DOCUMENTARY POST-PRODUCTION                       │
+│                    HYBRID FILM POST-PRODUCTION                       │
 │                    ~20-month pipeline, 3-platform delivery           │
 └─────────────────────────────────────────────────────────────────────┘
 
@@ -112,8 +112,6 @@ The team at month 18 is not the team at month 2. By month 18: one editor may hav
 
 | Plugin | Publisher | Role | Cost |
 |--------|-----------|------|------|
-| Color Finale 2 Pro | Color Trix | Primary grade + CDL export | ~$150 |
-| BRAW Toolbox | Color Trix / Boris FX | Native Blackmagic RAW import | ~$80 |
 | Gyroflow Toolbox | fcp.cafe | Gyroscopic stabilization (reads embedded gyro) | free |
 | Marker Toolbox | LateNite Films | Review markers from Vimeo / Frame.io | bundle |
 | Fast Collections | LateNite Films | Smart Collections batch generation | bundle |
@@ -494,7 +492,7 @@ These are not optional costs. They will be incurred. The only question is whethe
 | Long-term storage post-delivery (10 years of RAW) | 2-8k EUR | Often ignored until the drive fails |
 | Contingency | 15-20% of total | Not optional |
 
-**Total potential gap between typical documentary budget and actual delivery cost: 50-150k EUR.** Budget this before post-production begins, not after.
+**Total potential gap between typical production budget and actual delivery cost: 50-150k EUR.** Budget this before post-production begins, not after.
 
 ### E&O Insurance and Chain of Title
 
