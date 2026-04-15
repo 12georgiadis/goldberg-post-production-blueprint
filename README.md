@@ -3,34 +3,67 @@
 > **License**: [Creative Commons BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/)
 > **Version**: 2.0
 > **Context**: Long-form documentary post-production, 18-24 months, multi-persona subject, archival material, experimental VFX, 3-platform delivery (festival DCP, streaming, Netflix HDR).
-> **Audience**: Independent filmmakers navigating complex documentary post-production without a large studio infrastructure.
 > **Note**: Built for one specific project and published as-is. Not a product, not a service. Take what's useful.
 
 ---
 
 ## Overview
 
-This blueprint documents an AI-orchestrated post-production architecture designed for independent documentary filmmakers working with a small team (3-5 editors), significant archival material, experimental AI-generated visuals, and multi-platform delivery requirements.
+This blueprint documents an AI-orchestrated post-production architecture for an independent documentary with a small team (3-5 editors), significant archival material, experimental AI-generated visuals, and multi-platform delivery requirements.
 
-The central thesis: an independent filmmaker in 2026 can orchestrate a pipeline that replaces approximately 9 traditional human roles (script supervisor, assistant editor, preliminary picture editor, preliminary sound editor, dailies colorist, archivist, narrative reader, continuity supervisor, second-unit researcher) using a combination of local and API-based AI tools -- provided the filmmaker accepts that the most critical decisions remain irreducibly human.
+The central thesis: an independent filmmaker in 2026 can orchestrate a pipeline that replaces approximately 9 traditional human roles using a combination of local and API-based AI tools -- provided the filmmaker accepts that the most critical decisions remain irreducibly human.
 
-**What this blueprint covers:**
+**What this covers:** full software stack, hardware infrastructure, 9-phase AI logging pipeline, collaboration protocols for 5 editors, delivery chain, legal and budget blind spots, risk management.
 
-- The philosophical layer (which must exist before the technical layer)
-- Full software stack with honest trade-offs
-- Infrastructure for 10+ TB of archival and camera footage
-- A 9-phase AI logging pipeline running overnight
-- Collaboration protocols for 5 editors using divided libraries
-- Delivery, legal, and budget blind spots
-- Risk management and fallback strategies
+---
 
-**What this blueprint does not cover:**
+## Architecture Diagram
 
-- Subject-specific ethical frameworks (see Note on Ethics below)
-- Budget negotiation with funders
-- Contractual specifics with distributors
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    DOCUMENTARY POST-PRODUCTION                       │
+│                    ~20-month pipeline, 3-platform delivery           │
+└─────────────────────────────────────────────────────────────────────┘
 
-**Estimated timeline context**: this document was stress-tested for a 20-month post-production period. Shorter productions will find it over-engineered; longer productions will need to extend the discipline protocols in Part IV.
+[ PRODUCTION CAPTURE ]
+   Blackmagic Pocket/Cinema 6K → BRAW 12:1 / iPhone ProRes
+             │ MHL + xxHash ingest + R2 Cloudflare backup
+             ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│  NAS (8-bay RAID 6, dual 10GbE, NVMe cache)                         │
+│  ├── /01_rushes_natives/    → camera originals                      │
+│  ├── /02_rushes_proxies/    → ProRes 422 LT 1080p (auto-generated)  │
+│  ├── /03_fcp_libraries/     → 5 divided libraries                   │
+│  ├── /04_assets/            → LUTs, Motion templates, fonts         │
+│  ├── /05_vfx_outputs/       → ComfyUI / Blender renders             │
+│  ├── /06_audio/             → music, sound design, Logic sessions   │
+│  ├── /07_exports/           → masters + deliverables                │
+│  ├── /no-ai-zone/           → protected footage, pipeline excluded  │
+│  └── /snapshots/            → 00_MASTER dated snapshots (30d min)   │
+└─────────────────────────────────────────────────────────────────────┘
+             │                       │                      │
+             ▼                       ▼                      ▼
+[ EDITING TEAM: 5 MACS ]    [ VFX TEAM: GPU RIG ]    [ COLORIST ]
+   FCP 12.2 + SpliceKit MCP    Windows RTX rig           Resolve Studio 20
+   + Color Finale 2 Pro        ComfyUI + Flux.2           HDR reference monitor
+   + BRAW Toolbox              Blender 4.4                ACES 1.3 ACEScct
+   + Motion + Logic Pro        Pallaidium                 CDL export → FCP
+   + Compressor + Pixelmator   Unity 6 (backup)
+   Claude Code orchestration   → ProRes 4444 to NAS
+   NVMe shuttle (local canon)
+             │
+             ▼
+[ SOUND ]                    [ AI PIPELINE (overnight) ]
+   FCP → Logic Pro              film-indexer council (5 voices)
+   FCP → X2Pro → Pro Tools      Gemini Flash + Claude Opus
+   printmaster return           Pinecone + SQLite
+                                → FCPXML injection via SpliceKit
+             ▼
+[ DELIVERY ]
+   ├── DCP festival (P3-D65 SDR, Compressor 4.8)
+   ├── Streaming H.264/H.265 (Rec.709, Compressor)
+   └── Netflix IMF HDR (HDR10 / Dolby Vision, Resolve Studio)
+```
 
 ---
 
@@ -38,63 +71,43 @@ The central thesis: an independent filmmaker in 2026 can orchestrate a pipeline 
 
 ### The No-AI Zone
 
-The single most important protocol in this blueprint has nothing to do with software.
+Before any AI tool processes your footage, **watch 30 hours of raw rushes alone, without AI assistance**. Designate a folder on your NAS as the No-AI Zone. The pipeline never reads this folder.
 
-Before any AI tool processes your footage, **you must watch 30 hours of raw rushes alone, without AI assistance**. Designate a folder on your NAS as the No-AI Zone. The AI pipeline never reads this folder. You watch this material without tags, without scoring, without pre-selection. You take handwritten notes.
-
-The reason is structural, not sentimental. A vision model trained on billions of images will generate labels that reflect its statistical understanding of the world. It will name what it recognizes. The shot you actually need -- the one that doesn't look like anything it has seen -- has no tag. If you let the AI catalog your material before you know it yourself, you will spend 20 months searching through the AI's understanding of your film rather than your own.
-
-The No-AI Zone is a protected creative space. It is not inefficiency. It is the precondition for the AI to be useful rather than directive.
+A vision model generates labels that reflect its statistical understanding of the world. It names what it recognizes. The shot you actually need -- the one that doesn't look like anything it has seen -- has no tag. If you let the AI catalog your material before you know it yourself, you will spend 20 months searching through the AI's understanding of your film rather than your own.
 
 **Protocol:**
-
-1. Intake new footage into the NAS. The pipeline watcher daemon triggers on new arrival.
-2. Before running the pipeline, move 10-20% of the most significant clips to `NAS:/footage/no-ai-zone/` (manual selection by filmmaker).
-3. These clips are excluded from Phase 0-8 processing by a simple path filter.
-4. They are logged manually by the filmmaker in `reports/no-ai-zone-log.md`.
-5. They may be entered into the pipeline later if the filmmaker chooses -- but only after the filmmaker's own reading is complete.
+1. Intake new footage to NAS. Pipeline watcher triggers on arrival.
+2. Before running the pipeline, move 10-20% of the most significant clips to `NAS:/no-ai-zone/` (manual selection by filmmaker).
+3. These clips are excluded from Phase 0-8 processing by path filter.
+4. Log them manually in `reports/no-ai-zone-log.md`.
+5. Enter them into the pipeline later if you choose -- but only after your own reading is complete.
 
 ### The Scratch Library
 
-Create a dedicated `99_scratch.fcplibrary` that **never merges into `00_MASTER`**. This library is not versioned, not indexed by the AI pipeline, and not backed up with the same rigor as the master.
+Create `99_scratch.fcplibrary` that **never merges into `00_MASTER`**. Not versioned, not indexed, not backed up with master rigor. This is the space for liquid writing, failed experiments, half-formed ideas.
 
-This is the space for liquid writing. For trying a cut that you suspect won't work but need to try. For assembling a sequence that feels wrong in 10 directions at once. For experiments that would contaminate the clean state of your master timeline.
-
-The absence of a scratch space is one of the most common failure modes in structured collaborative workflows. Without it, editors either stop experimenting (losing the creative benefit of the collaboration) or start contaminating the master with half-formed ideas (losing the organizational benefit of the structure). The scratch library resolves this tension by making the separation architectural rather than disciplinary.
+Without a scratch space, editors either stop experimenting (losing creative benefit) or contaminate the master with unfinished ideas (losing organizational benefit). The separation must be architectural, not disciplinary.
 
 **Rules:**
-
-- No clip that has only been assembled in `99_scratch` should be referenced in `00_MASTER`.
-- The scratch library can be wiped and rebuilt. Accept this.
-- Individual editors may maintain their own scratch libraries. They are not synchronized.
+- No clip only assembled in `99_scratch` should be referenced in `00_MASTER`.
+- The scratch library can be wiped. Accept this.
 
 ### The Moral Center
 
-Before the first cut, write one sentence in your own handwriting describing where your camera stands morally in relation to your subject. Pin it above your editing station.
+Before the first cut, write one sentence in your own handwriting describing where your camera stands morally in relation to your subject. Pin it above the editing station.
 
-This sentence is not a logline. It is not a pitch. It is an internal compass. When a cut isn't working and you cannot identify why, re-read the sentence before looking at the technical problem.
+When a cut isn't working and you cannot identify why, re-read the sentence before looking at the technical problem. Editorial decisions accumulate over 20 months. The moral center of a film drifts imperceptibly, cut by cut. A written sentence, revisited regularly, functions as a correction mechanism.
 
-This practice is discipline, not mysticism. Editorial decisions accumulate over 20 months. The moral center of a film can drift imperceptibly, cut by cut, until it becomes something its maker did not intend. A written sentence, revisited regularly, functions as a correction mechanism.
-
-The sentence will probably need revision at month 8 or month 12. Revise it deliberately, in discussion with your team. Do not let it drift passively.
+Revise it deliberately at months 8 and 12. Do not let it drift passively.
 
 ### Discipline Over 20 Months
 
-The protocols in this blueprint were designed for a 5-editor team working over 20 months. They were explicitly reviewed by simulating the team dynamics of month 18, not month 2.
-
-**The central insight from that review**: the team at month 18 is not the team at month 2. By month 18:
-
-- One editor may have left and been replaced.
-- The discipline around commit protocols will have eroded.
-- The merge assistant (see Part III, The 6th Role) will have developed informal shortcuts that bypass the written protocols.
-- The AI pipeline will have encountered at least one major software version that broke a critical component.
+The team at month 18 is not the team at month 2. By month 18: one editor may have left and been replaced, discipline around commit protocols will have eroded, the merge assistant will have developed shortcuts that bypass written protocols, the AI pipeline will have encountered at least one major software version that broke a critical component.
 
 **Structural response:**
-
-- Write the discipline protocols now as if explaining them to someone who was not in the room when you made the original decisions.
-- Schedule explicit protocol review sessions at months 4, 8, 12, and 16.
-- The protocols should be living documents. Editors sign a one-page acknowledgment when joining the project.
-- Treat the protocol review sessions as production events, not overhead.
+- Write discipline protocols now as if explaining them to someone who was not in the room when you made the original decisions.
+- Schedule protocol review sessions at months 4, 8, 12, 16.
+- Editors sign a one-page acknowledgment when joining. Treat protocol reviews as production events.
 
 ---
 
@@ -102,350 +115,359 @@ The protocols in this blueprint were designed for a 5-editor team working over 2
 
 ### Software Stack
 
-The following stack was selected after extensive review of the 2026 NLE landscape and validated against the specific requirements of complex documentary post-production.
-
 #### Primary Creative Chain
 
-| Tool | Version | Role | Reasoning |
-|------|---------|------|-----------|
-| Final Cut Pro | 12.2 | Hub NLE | Native Apple Silicon, BRAW Toolbox, SpliceKit MCP, fastest proxy workflow on M-series hardware |
-| SpliceKit MCP | current | FCP programmatic layer | Direct in-process control of FCP internals via injected dylib -- enables AI pipeline injection |
-| Motion | 5.8 | Titles, VFX templates | FCP-native, no round-trip required |
-| Logic Pro | 11 | Preliminary audio assembly | FCP-native round-trip, available on same machine as NLE |
-| Color Finale 2 Pro | current | Primary grade in FCP, CDL export | Enables colorist round-trip without leaving FCP for grade review |
-| BRAW Toolbox | current | Native BRAW import in FCP | Eliminates transcode step for Blackmagic camera footage |
-| X2Pro Audio Convert | current | AAF export to Pro Tools | Standard bridge between FCP and professional audio suites |
-| Compressor | 4.8 | DCP, H.265, deliverable masters | Festival DCP (P3-D65 SDR), streaming masters |
-| Pixelmator Pro | current | Static graphics | Replace Photoshop; no subscription, M-series native |
+| Tool | Version | Role | Cost (indicative) |
+|------|---------|------|-------------------|
+| Final Cut Pro | 12.2 | Hub NLE | €299 one-time |
+| SpliceKit MCP | current | FCP programmatic layer (direct in-process, 200+ tools) | free / open source |
+| Motion | 5.8 | Titles, VFX templates, FCP-native | €50 one-time |
+| Logic Pro | 11 | Preliminary audio, FCP-native round-trip | €230 one-time |
+| Color Finale 2 Pro | current | Primary grade in FCP, ASC CDL export to colorist | ~$150 one-time |
+| BRAW Toolbox | current | Native BRAW import in FCP, no transcode step | ~$80 one-time |
+| X2Pro Audio Convert | current | AAF export to Pro Tools | ~$200 one-time |
+| Compressor | 4.8 | DCP, H.265, deliverable masters | €50 one-time |
+| Pixelmator Pro | current | Static graphics, replaces Photoshop | €50 one-time |
+
+#### FCP Ecosystem Plugins
+
+| Plugin | Publisher | Role | Cost |
+|--------|-----------|------|------|
+| Color Finale 2 Pro | Color Trix | Primary grade + CDL export | ~$150 |
+| BRAW Toolbox | Color Trix / Boris FX | Native Blackmagic RAW import | ~$80 |
+| Gyroflow Toolbox | fcp.cafe | Gyroscopic stabilization (reads embedded gyro) | free |
+| Marker Toolbox | LateNite Films | Review markers from Vimeo / Frame.io | bundle |
+| Fast Collections | LateNite Films | Smart Collections batch generation | bundle |
+| CommandPost | community | Hardware panels, batch tagging, Lua automation | free |
+| Neat Video | ABSoft | Denoise (FCP plugin, for high-ISO footage) | ~$100 |
 
 #### Grade and Final Mix Chain
 
 | Tool | Version | Role | Location |
 |------|---------|------|----------|
-| DaVinci Resolve Studio | 20 | Final grade + Netflix IMF wrap | Colorist workstation (Windows or Mac) |
-| Pro Tools | current | Final mix | Mix studio (France or remote) |
+| DaVinci Resolve Studio | 20 | Final grade + Netflix IMF wrap | Colorist workstation (Windows) |
+| Pro Tools | current | Final mix | External mixer |
 
 #### AI Visual Chain
 
-| Tool | Version | Role |
-|------|---------|------|
-| ComfyUI | current | AI-generated visuals, experimental VFX, reconstruction sequences |
-| Blender 4.4 + Pallaidium | current | Backup 3D specific cases |
-| Unity 6 LTS | current | Backup real-time interactive elements |
-| Godot 4.3 | current | Backup lightweight interactive experiences |
+| Tool | Role |
+|------|------|
+| ComfyUI (Flux.2, Wan 2.2, LTX-2) | AI-generated visuals, reconstruction sequences, experimental VFX |
+| Blender 4.4 + Pallaidium | 3D, specific cases, AI generation inside VSE |
+| Unity 6 LTS | Backup for real-time interactive elements |
+| Godot 4.3 | Backup for lightweight interactive experiences |
 
-**Tools explicitly excluded**: Adobe Firefly (subscription, cloud-dependent), LTX Studio (cloud-dependent), After Effects (unnecessary if Motion + Resolve covers the use cases), CapCut (consumer-grade, no professional delivery path).
+**Explicitly excluded**: Adobe Firefly (cloud-dependent subscription), After Effects (Motion + Resolve covers the use cases), CapCut (no professional delivery path), LTX Studio (cloud-dependent).
 
-#### Trade-offs (honest assessment)
+#### Claude Code + MCP Layer
 
-**FCP vs. Resolve as primary NLE**: Resolve 20 has a stronger built-in collaboration system (multi-user project server). FCP with divided libraries is workable for 2-3 editors with strict discipline; at 5 editors it requires additional tooling (LOCKS.md protocol, merge assistant role). Resolve was eliminated for the primary NLE role because: Apple Silicon performance gap is significant for proxy-heavy workflows; SpliceKit MCP has no Resolve equivalent; FCP-native round-trips with Motion, Logic, and Compressor reduce friction. Resolve remains essential for final grade and Netflix delivery.
+| Component | Role |
+|-----------|------|
+| Claude Code CLI | Agentic orchestration across all tools |
+| SpliceKit MCP | Direct in-process FCP control (200+ tools via injected dylib) |
+| comfyui-mcp | ComfyUI workflow orchestration from Claude |
+| fcp-xml MCP | FCPXML-level batch operations (complement to SpliceKit) |
+| Pinecone MCP | Semantic search across rush archive |
 
-**SpliceKit MCP risk**: SpliceKit depends on a patched dylib maintained by a single developer against private Apple APIs. See Part V, SpliceKit Fallback Strategy for the mitigation.
+#### Trade-offs
 
-**PostLab vs. divided libraries**: PostLab solves the collaboration problem correctly and cleanly. Divided libraries solve it at a lower recurring cost but with higher discipline overhead. At 5 editors over 20 months, PostLab's recurring cost becomes justifiable; divided libraries become justifiable only if a dedicated merge assistant role is funded (see The 6th Role).
+**FCP vs. Resolve as primary NLE**: Resolve 20 has a stronger built-in collaboration system. FCP with divided libraries is workable for 2-3 editors; at 5 editors it requires the LOCKS.md protocol and a merge assistant role. Resolve was eliminated as primary NLE because: Apple Silicon performance gap is significant for proxy-heavy workflows; SpliceKit MCP has no Resolve equivalent; FCP-native round-trips with Motion, Logic, and Compressor reduce friction. Resolve remains essential for final grade and Netflix delivery.
 
-### Infrastructure
+**SpliceKit MCP risk**: depends on a patched dylib against private Apple APIs. See Part V for fallback strategy. Do not use SpliceKit for irreversible operations on `00_MASTER`.
 
-#### Storage
+**PostLab vs. divided libraries**: PostLab solves the collaboration problem correctly and cleanly. Divided libraries solve it at a lower recurring cost but with higher discipline overhead. At 5 editors over 20 months, divided libraries only hold if a dedicated merge assistant role is funded.
 
-| Component | Specification | Reasoning |
-|-----------|--------------|-----------|
-| Primary NAS | 8-bay RAID 6 (UGreen DXP 8800 Plus or equivalent) | RAID 6 mandatory: at 16TB drives, RAID 5 URE rebuild risk is statistically unacceptable |
-| NAS drives | 8x 16TB (96 TB usable in RAID 6) | Sized for 10+ TB raw footage + proxies + project files |
-| NVMe shuttle drives | 4 TB Thunderbolt 4, one per editor | Local canonical library during session; synced to NAS end of day |
-| Off-site cold storage | Cloudflare R2 (or equivalent S3-compatible) | Versioned backup of FCPXML, database, and critical masters |
-| NAS cache | 2x NVMe internal (NAS cache slots) | Metadata reads and proxy access |
-| Network | 10GbE switch, Cat 6a or SFP+ for long runs | Required: 5 FCP instances accessing NAS proxies simultaneously |
+### Hardware Infrastructure
 
-**Critical rule: no simultaneous library access.** Five FCP instances breathing simultaneously on the same library database over NAS produces beachballs and background render conflicts. The protocol is: each editor maintains a local canonical copy of their assigned library on their NVMe shuttle. The NAS copy is the sync destination, not the live working location. Sync happens end of day, not mid-session.
+#### Shared Storage (NAS)
 
-#### Network
+| Component | Specification | Notes |
+|-----------|--------------|-------|
+| Primary NAS | 8-bay RAID 6 (UGreen DXP 8800 Plus or equivalent) | RAID 6 mandatory at 16TB drives: RAID 5 URE rebuild risk is statistically unacceptable |
+| NAS drives | 8x 16TB (96 TB usable) | Sized for 10+ TB raw footage + proxies + project files |
+| NAS cache | 2x NVMe M.2 (internal cache slots) | Hot files at SSD speed, cold archives on HDD |
+| Network | 10GbE switch, Cat 6a or SFP+ for long runs | Required for 5 simultaneous FCP instances on NAS proxies |
 
-- **Tailscale mesh**: enables the AI pipeline to dispatch compute tasks to a remote GPU workstation (RTX-class, 4+ VRAM for ComfyUI) via SSH without VPN configuration overhead.
-- **10GbE local switch**: required for NAS throughput at 5 simultaneous editors.
+**Critical rule: no simultaneous library access.** Five FCP instances breathing simultaneously on the same library database over NAS produces beachballs and background render conflicts. Each editor maintains a local canonical copy of their assigned library on their NVMe shuttle. The NAS copy is the sync destination, not the live working location. Sync happens end of day, not mid-session.
 
-#### GPU Compute
+#### Editing Workstations
+
+| Role | Machine | RAM | Notes |
+|------|---------|-----|-------|
+| Lead editor | Mac Mini M4 (or Mac Studio M4/M5 Ultra) | 24-64GB | Native edit when RAM allows; proxies otherwise |
+| Lead editor mobile | MacBook Air M3 | 16GB | Proxies only, travel and review |
+| Editors 2-5 | Own Mac (M-series) | 16-32GB | ProRes proxies from NAS |
+
+All 5 editors work on **ProRes 422 LT 1080p proxies** generated automatically at ingest. Not ProRes Proxy (too compressed for fine cut), not 422 HQ (overkill). LT at 1080p is the right balance: trivial to decode on Apple Silicon, instant scrub, quality sufficient for all creative decisions. Native originals are reserved for final export passes.
+
+**NVMe shuttle drives**: one 4TB Thunderbolt 4 drive per editor. Local canonical library during session. End of day: sync to NAS.
+
+#### Off-site Backup
+
+- **Cloudflare R2** (or equivalent S3-compatible): versioned backup of FCPXML, database, and critical masters
+- **Tailscale mesh**: secure access to all machines including remote GPU rig, without VPN configuration overhead
+
+#### GPU Compute (Remote Rig)
 
 A remote GPU workstation (RTX 5090 or equivalent, connected via Tailscale) handles:
 
-- BRAW decode at scale (Phase 1 pipeline)
+- BRAW decode at scale (Phase 1)
 - Gemini Vision keyframe extraction (Phase 3)
-- Audio neural analysis (pyannote, yamnet, openunmix) (Phase 4)
+- Audio neural analysis: pyannote, yamnet, openunmix (Phase 4)
 - SigLIP visual embeddings (Phase 3)
 - ComfyUI AI visual generation
 
-Dispatch is handled by the pipeline orchestrator via SSH + rsync. The `--remote` flag in pipeline commands routes heavy computation to the GPU workstation.
+Dispatch via SSH + rsync. `--remote` flag in pipeline commands routes heavy computation to the GPU workstation.
 
-### AI Logging Pipeline (9 Phases)
+### Team Structure
 
-The pipeline replaces approximately 9 human roles in the dailies-to-editorial process. It runs overnight. The filmmaker reads reports in the morning. Total API cost for a 200-day shoot at approximately 100 clips per day: approximately $305.
+| Role | Library | Tools | Notes |
+|------|---------|-------|-------|
+| Lead editor | `00_MASTER.fcplibrary` | FCP + Motion + Logic + Color Finale 2 + Claude Code | Creative decisions only. Not the merge integrator (see 6th Role). |
+| Editor 2 -- rushes / ingest | `01_rushes.fcplibrary` | FCP + BRAW Toolbox + CommandPost | Handles native ingest, proxy generation oversight |
+| Editor 3 -- archives | `02_archives.fcplibrary` | FCP + custom normalization scripts | Archival material only |
+| Editor 4 -- interviews | `03_interviews.fcplibrary` | FCP + native FCP 12 transcription | Interview footage only |
+| Editor 5 -- reconstructions / VFX | `04_reconstructions.fcplibrary` | FCP + BRAW Toolbox + Color Finale 2 | Reconstructed sequences, AI-generated inserts |
+| **Merge assistant (6th role)** | `00_MASTER.fcplibrary` write access | FCP + fcpxml-mcp-server | Daily integration, snapshots, conflict resolution. Full-time role. |
+| VFX team (1-3 people) | Not in FCP tree | ComfyUI + Blender | ProRes 4444 output to NAS `/05_vfx_outputs/` |
+| Colorist | External | DaVinci Resolve Studio 20 | FCPXML round-trip, ACES grade, CDL export |
+| Sound mixer | External | Pro Tools | AAF via X2Pro, printmaster return |
+
+---
+
+## Part III: Workflow Protocols
+
+### 1. Capture and Ingest
+
+1. Camera cards arrive from shoot.
+2. DIT copies to two drives with `ascmhl create -h xxh64` for xxhash integrity verification.
+3. Primary copy pushed to NAS `/01_rushes_natives/`.
+4. Editor 2 runs FCP import with proxy media enabled (ProRes 422 LT 1080p). Proxies auto-populate `/02_rushes_proxies/`.
+5. Nightly cron rsyncs natives + MHL to Cloudflare R2 for off-site backup.
+
+**Proxy workflow with LUT**: generate proxies in **Log color space** (BMD Film Gen 5, Apple Log, or original camera log). Apply a correction LUT via an FCP adjustment layer above the proxy footage. This way: swap the LUT without re-exporting proxies; at conform, FCP relinks BRAW originals by filename and the log proxies become irrelevant.
+
+**Recommended processing order in Phase 1**: RAW decode → stabilization (Gyroflow or Mercalli v6) → denoise (Neat Video) → ProRes 422 LT export.
+
+### 2. Editing (Divided Libraries)
+
+Each editor works strictly within their assigned library. Scope must be **genuinely watertight**: interview footage does not appear in the archives library; archive clips used in reconstruction are imported from the shared read-only assets folder (`/04_assets/`), never duplicated.
+
+**Before first import: the Rolemap**
+
+Audio role contamination (interview audio mislabeled as ambient, VO mixed with dialogue) is one of the most common and difficult-to-repair failure modes in FCPXML-based collaboration. It propagates through imports and is invisible until the sound mix.
+
+Write and distribute the rolemap before any import:
 
 ```
-[Camera card / NAS intake]
-        |
-        v
-[Phase 0] Inventory + hash verification
-        |
-        v
-[Phase 1] Ingest + proxy generation (ffmpeg, H.264 low / ProRes Proxy mezzanine)
-        |
-        v
-[Phase 2] Local transcription (MacWhisper + Parakeet v3)
-        |
-        v
-[Phase 3] Image analysis (Gemini Flash vision + scene detection)
-        |
-        v
-[Phase 4] Audio analysis (pyannote + LUFS + spectral classification)
-        |
-        v
-[Phase 5] Narrative detection (Claude Opus 1M context)
-        |
-        v
-[Phase 6] Council review (multi-voice LLM editorial scoring)
-        |
-        v
-[Phase 7] FCP injection (SpliceKit MCP + enriched FCPXML)
-        |
-        v
-[Phase 8] Semantic query interface (Pinecone + SQLite)
+Dialogue    → sync interview sound, direct address
+Ambient     → room tone, environmental sound, crowd
+Music       → score, source music, needle drops
+VO          → filmmaker narration, third-party narration
+FX          → effects, designed sound
 ```
 
-**Central database**: SQLite at `index/[project].sqlite` with tables for clips, takes, shots, days, audio analysis, image analysis, and council notes.
+All editors sign off on this document. The merge assistant checks role assignments on every FCPXML import. Mislabeled roles are corrected before merge, not after.
 
-**Semantic index**: Pinecone index (1024 dims, `multilingual-e5-large` model), namespaced by day, with separate namespaces for transcripts, visual embeddings, and narrative summaries.
-
-**FCPXML output**: enriched v1.11 FCPXML stored at `fcpxml/YYYY-MM-DD.fcpxml`.
-
-#### Phase 0 -- Inventory and Hash
-
-**Human role replaced**: DIT / shooting archivist.
-
-Scans source volumes, builds a JSON inventory with xxhash64 fingerprint, size, codec, framerate, timecode, EXIF creation date, and embedded LUT name for RAW camera files. All clips not previously seen by the pipeline are marked `status=new`.
-
-```bash
-python pipeline/00_inventory.py \
-  --source /Volumes/[NAS-Footage-Volume] \
-  --db index/[project].sqlite \
-  --since [YYYY-MM-DD]
-```
-
-**Human checkpoint**: review the inventory report. Validate day groupings before proceeding.
-
-**Estimated time**: ~12 minutes per 2 TB over 10GbE. **API cost**: zero.
-
-#### Phase 1 -- Ingest and Proxy Generation
-
-**Human role replaced**: assistant editor for media preparation.
-
-Generates two derivatives per new clip: a low-res H.264 proxy (540p, 2 Mbps) for AI vision analysis, and a ProRes Proxy mezzanine (1080p) for FCP. RAW camera files are decoded via CLI tools (BRAW Toolbox, DaVinci Resolve headless); ProRes sources pass directly through ffmpeg.
-
-**Optional stabilization and denoise** (applied before mezzanine export):
-
-- Gyroflow (open source, reads embedded gyro data from Blackmagic cameras) for handheld stabilization
-- Neat Video (FCP plugin) for high-ISO noise reduction
-
-Recommended order for Phase 1: RAW decode -> stabilization -> denoise -> ProRes Proxy export.
-
-```bash
-python pipeline/01_ingest.py \
-  --db index/[project].sqlite \
-  --proxy-root /Volumes/NAS/[project]/proxies \
-  --mezzanine-root /Volumes/NAS/[project]/mezzanine \
-  --workers 6 \
-  --remote [gpu-workstation-hostname]
-```
-
-**Estimated time**: ~2h30 per shooting day (80 RAW + 40 iPhone clips, ~600 GB) overnight on GPU workstation. **API cost**: zero.
-
-#### Phase 2 -- Local Transcription
-
-**Human role replaced**: script supervisor for dialogue, VO, take numbers.
-
-Every clip passes through MacWhisper (Parakeet v3 engine). Audio is extracted as mono 16 kHz WAV. The transcription JSON (word-level timestamps) is processed to:
-
-1. Extract take/scene markers via regex
-2. Classify segments as dialogue vs. silence vs. ambient by word-per-second ratio
-3. Auto-tag recurring speaker identities against a reference voice print (if available)
-4. Store transcription in SQLite and embed sentence-level vectors into Pinecone
-
-**Rule**: local transcription only. No OpenAI Whisper API. Parakeet v3 runs at approximately 20x real-time on Apple Silicon M-series hardware.
-
-```bash
-python pipeline/02_transcribe.py \
-  --db index/[project].sqlite \
-  --engine macwhisper-parakeet-v3 \
-  --lang auto \
-  --out transcripts/
-```
-
-**Estimated time**: ~40 minutes for 10 hours of audio on MacBook M3. **API cost**: zero.
-
-#### Phase 3 -- Image Analysis
-
-**Human role replaced**: script supervisor (shot description), preliminary colorist, preliminary picture editor.
-
-For each clip, N keyframes are extracted (1 frame per 2 seconds up to 30 seconds, then 1 per 5 seconds beyond that, max 60 frames per clip). Each batch is sent to Gemini Flash via Google API with a structured JSON prompt.
-
-**The prompt asks the model to return**:
+**LOCKS.md protocol**: plain JSON file on NAS root. Editors declare working hours and lock clips before each session:
 
 ```json
 {
-  "subject": "primary visible subject",
-  "secondary_subjects": [...],
-  "composition": "dominant rule (thirds, center, symmetry, depth)",
-  "shot_size": "ECU|CU|MCU|MS|MLS|LS|ELS",
-  "camera_movement": "static|pan|tilt|handheld|gimbal|dolly|zoom|complex",
-  "lighting": "natural_day|natural_night|mixed|tungsten|practical|dark",
-  "exposure_flag": "ok|underexposed|overexposed|clipping_highlights|crushed_blacks",
-  "color_temperature_estimate_k": 5600,
-  "lut_guess": "Rec709|LogC|BMDFilm|Generic",
-  "location_type": "interior|exterior|car|studio",
-  "noise_level": "clean|moderate|heavy",
-  "focus_quality": "sharp|soft|oof",
-  "continuity_markers": ["visible objects useful for match cuts"],
-  "narrative_hypothesis": "what this shot says in one sentence",
-  "grade_challenges": ["items the colorist will need to address"],
-  "director_second_look": "what works / what does not work, 2 sentences max"
+  "2026-04-15T09:00:00": {
+    "clip_id": "A022-C003",
+    "locked_by": "Editor 2",
+    "reason": "Archive grading in progress",
+    "expected_release": "2026-04-16T10:00:00"
+  }
 }
 ```
 
-The `director_second_look` field is the AI's equivalent of the filmmaker's own end-of-day review. It is not trusted blindly -- it is a prompt for the filmmaker's attention, not a verdict.
+Locks are released by the merge assistant after successful integration. When two editors have conflicting versions of the same clip, the merge assistant has final authority on which version enters `00_MASTER`.
 
-Visual embeddings (SigLIP model, local on GPU workstation) are pushed to Pinecone for visual similarity search.
+### 3. The 6th Role
 
-**Estimated time**: ~2-3 hours for 120 clips. **API cost**: ~$0.27/day, ~$55 over a 200-day shoot.
+**This role is not optional on a 5-editor project lasting 20 months.**
 
-**Human checkpoint**: review the image analysis report on the first day of each new shooting location. Calibrate the prompt if the model is systematically miscategorizing your footage type.
+The lead editor cannot function simultaneously as merge integrator and creative editor. By month 6, integration overhead crowds out editorial clarity. By month 12, the project accumulates merge debt.
 
-#### Phase 4 -- Audio Analysis
+**Daily responsibilities:**
+- Pull each editor's library updates from NAS, verify no partial writes
+- Run pre-merge diff: compare incoming FCPXML against `00_MASTER` snapshot before any import
+- Flag conflicts for resolution (authority over which version wins)
+- Import approved FCPXML into `00_MASTER`
+- Create dated snapshot of `00_MASTER` after each integration session
 
-**Human role replaced**: preliminary sound editor.
+**Weekly responsibilities:**
+- Test fallback tools (see Part V)
+- Review LOCKS.md for stale locks
+- Check rolemap compliance on recent imports
 
-For each clip's audio track:
+**Budget implication**: this is a salaried position for the duration of post-production. If budget does not allow it, reduce from 5 editors to 3 with genuinely watertight scope -- do not assign the role informally to the director.
 
-1. **Loudness**: LUFS integrated and momentary via ffmpeg ebur128. Flag if < -30 LUFS (too quiet) or > -14 LUFS (hot).
-2. **Spectral content**: voice activity detection (pyannote VAD), music separation (openunmix on GPU workstation), usable silence detection (room tone > 2 seconds).
-3. **Speaker diarization**: pyannote speaker-diarization-3.1. Match against reference voice prints if available.
-4. **Background noise classification**: yamnet (TensorFlow Hub) for wind, traffic, indoor quiet, crowd, AC hum, handling noise.
-5. **Room tone candidates**: silence windows > 2 seconds, flagged for the sound editor.
+### 4. Snapshots
 
-```bash
-python pipeline/04_audio_analyze.py \
-  --db index/[project].sqlite \
-  --remote [gpu-workstation-hostname] \
-  --room-tone-min-duration 2.0
+Before every FCPXML integration into `00_MASTER`, the merge assistant creates a dated snapshot:
+
+```
+NAS:/[project]/snapshots/
+  2026-04-15T18:30-MASTER.fcpbundle.tar.gz
+  2026-04-14T19:15-MASTER.fcpbundle.tar.gz
 ```
 
-**Estimated time**: ~30 minutes per shooting day, run in parallel with Phase 3. **API cost**: zero.
+Retention: 30 days minimum on NAS. Older snapshots archived to cold storage (R2), not deleted.
 
-#### Phase 5 -- Narrative Detection
+**Why this matters**: FCPXML imports have a known failure mode -- they can break compound clip references and role assignments in ways not immediately visible. Without snapshots, a corrupt import discovered two weeks later has no clean recovery path.
 
-**Human role replaced**: script reader, dramaturg.
+### 5. VFX and AI Generation
 
-Claude Opus (1M context window) ingests the combined output of Phases 2, 3, and 4 for an entire shooting day in a single call. With a 1M context window, a full day of footage metadata can be processed in one pass.
+VFX team works on the GPU rig, disconnected from the FCP project tree. Their deliverables flow one direction only: NAS → FCP.
 
-**The prompt asks the model to identify**:
+Typical cycle:
+1. Lead editor identifies a shot needing VFX or AI generation.
+2. Claude Code sends a brief to the VFX team via Discord or custom bridge.
+3. VFX team runs ComfyUI / Blender workflow on GPU rig.
+4. Output renders as ProRes 4444 or EXR to `/05_vfx_outputs/<shot_id>/`.
+5. Claude Code detects new files and imports via SpliceKit `import_fcpxml()` or direct media add.
+6. Editor places the new clip in the timeline.
 
-1. The narrative scene each clip belongs to (named)
-2. The narrative beat (setup, development, turn, release)
-3. Possible edit connections with other clips from the same day
-4. Coverage gaps (what is missing to cut the scene)
-5. Continuity contradictions detected
+Lock ComfyUI custom node versions for each completed VFX sequence. Document which node versions were used. Export finished AI sequences as ProRes masters immediately after approval -- these are the deliverables; the ComfyUI workflow is the process.
 
-Output: a JSON scene map and a readable markdown report at `reports/day-YYYY-MM-DD-narrative.md`.
+### 6. Color Grade (FCP → Resolve → FCP)
 
-**This report is read by the filmmaker every morning**. It is not an instruction. It is a map. The filmmaker decides what to follow and what to discard.
+1. Export partial FCPXML 1.10 containing only sequences ready for grade.
+2. Consolidate associated media. Generate ASC MHL for the package.
+3. Deliver to colorist via NAS, cloud drop, or shuttle.
+4. Colorist imports into Resolve Studio, conforms, grades in ACES 1.3 ACEScct.
+5. Colorist renders graded clips as ProRes 4444 (same source filename + `_GRADED` suffix).
+6. Graded files returned to NAS.
+7. Lead editor swaps originals for graded clips via SpliceKit batch operations.
 
-**Estimated time**: ~3 minutes per day (1 API call). **API cost**: ~$0.50/day (approximately 200k tokens input + 20k output on Opus).
+**On iteration**: if the cut changes after grade, re-export updated partial FCPXML. Colorist uses Resolve's ColorTrace to reapply existing grades to the new cut. Only new or trimmed clips need fresh grade attention.
 
-**Human checkpoint**: mandatory. Read this report before opening FCP.
+### 7. Sound (FCP → Logic Pro → Pro Tools → FCP)
 
-#### Phase 6 -- Council Review
+**Preliminary (in-house)**:
+1. Build preliminary sound in FCP with audio roles assigned (Dialogue.Sync, Dialogue.Narration, Music.Score, Effects.Ambience, Effects.Hard).
+2. For music and complex sound design: `File → Send Audio to Logic Pro`.
+3. Bounce stems back to FCP via AIFF/WAV.
 
-**Human role replaced**: second-look director, first editor, artistic advisor.
+**Final mix**:
+1. At picture lock, export AAF via X2Pro Audio Convert. Audio roles become Pro Tools tracks automatically.
+2. External mixer receives AAF + reference QuickTime ProRes 422 HQ with burn-in.
+3. Mixer delivers stems (dialogue, music, effects) + printmaster.
+4. Import printmaster into FCP on a new audio track. Mute preliminary audio.
 
-The `film-indexer` tool runs each enriched clip through a multi-voice LLM editorial panel. Each voice scores the clip from 1 to 10 and writes 2-3 sentences of editorial notes.
+### 8. ACES Working Space
 
-**Example editorial voices and their criteria**:
+The entire pipeline works in **ACES 1.3 ACEScct** from ingest to delivery:
+
+- Editing team sees SDR ODT (Rec.709) on standard monitors during edit.
+- Colorist grades in ACES on HDR reference monitor (Flanders Scientific, Sony BVM, or equivalent).
+- Single ACES master trims to each delivery target via different ODTs: P3-D65 SDR for DCP, Rec.709 for streaming, Rec.2020 PQ for Netflix HDR.
+- Future-proof: any new delivery format uses the same ACES master.
+
+ACES config works cross-tool: FCP (ACES Wide Gamut HDR), Blender (OCIO ACES config), ComfyUI (appropriate HDR nodes), Resolve (ACEScct timeline).
+
+### 9. Delivery
+
+| Target | Format | Tool | Notes |
+|--------|--------|------|-------|
+| Festival DCP | JPEG2000 in MXF, SMPTE DCP | Compressor 4.8 | P3-D65 SDR, 5.1 or stereo from printmaster |
+| Streaming | H.264 or H.265 MP4 | Compressor 4.8 | Rec.709 SDR, stereo downmix |
+| Netflix IMF | IMF 2067-21, HDR10 or Dolby Vision | DaVinci Resolve Studio | One-way operation at end of chain; FCP does not export IMF natively |
+
+**Netflix delivery specs change every 6 months.** Download the Netflix Partner Help Center spec and lock the contractually required version in your delivery contract.
+
+---
+
+## Part IV: AI Logging Pipeline (9 Phases)
+
+Runs overnight. Replaces approximately 9 human roles in the dailies-to-editorial process. Total API cost for a 200-day shoot at ~100 clips/day: approximately $305.
+
+```
+[Camera card / NAS intake]
+        ↓
+[Phase 0]  Inventory + xxhash64 verification
+        ↓
+[Phase 1]  Ingest + proxy generation (H.264 low / ProRes 422 LT)
+        ↓
+[Phase 2]  Local transcription (MacWhisper + Parakeet v3, 0 API cost)
+        ↓
+[Phase 3]  Image analysis (Gemini Flash vision, ~$0.27/day)
+        ↓
+[Phase 4]  Audio analysis (pyannote + LUFS + yamnet, 0 API cost)
+        ↓
+[Phase 5]  Narrative detection (Claude Opus 1M context, ~$0.50/day)
+        ↓
+[Phase 6]  Council review: 5-voice LLM editorial scoring (~$0.50/day)
+        ↓
+[Phase 7]  FCP injection (SpliceKit MCP + enriched FCPXML v1.11)
+        ↓
+[Phase 8]  Semantic query interface (Pinecone + SQLite)
+```
+
+**Central database**: SQLite at `index/[project].sqlite`.
+**Semantic index**: Pinecone (1024 dims, `multilingual-e5-large`), namespaced by day.
+**FCPXML output**: enriched v1.11 at `fcpxml/YYYY-MM-DD.fcpxml`.
+
+### Phase 0 -- Inventory and Hash
+
+Scans source volumes, builds JSON inventory with xxhash64 fingerprint, size, codec, framerate, timecode, EXIF creation date. All clips not previously seen are marked `status=new`. **API cost**: zero.
+
+### Phase 1 -- Ingest and Proxy Generation
+
+Two derivatives per clip: H.264 540p for AI vision analysis, ProRes 422 LT 1080p for FCP. RAW decoded via BRAW Toolbox / DaVinci Resolve headless. Processing order: decode → stabilization (Gyroflow) → denoise (Neat Video) → ProRes export. **API cost**: zero.
+
+### Phase 2 -- Local Transcription
+
+MacWhisper (Parakeet v3 engine). Word-level timestamps. Auto-classifies dialogue vs. silence vs. ambient. Speaker diarization against reference voice prints if available. **Rule: local transcription only, never OpenAI Whisper API.** Parakeet v3 runs at ~20x real-time on Apple Silicon. **API cost**: zero.
+
+### Phase 3 -- Image Analysis
+
+N keyframes per clip extracted (1 frame/2s up to 30s, then 1/5s, max 60 frames/clip). Each batch sent to Gemini Flash with structured JSON prompt. Returns: subject, shot size, camera movement, lighting, exposure flag, color temperature estimate, LUT guess, noise level, focus quality, continuity markers, `narrative_hypothesis`, `grade_challenges`, `director_second_look`. Visual embeddings (SigLIP, local on GPU) pushed to Pinecone for similarity search. **API cost**: ~$0.27/day, ~$55/200 days.
+
+**Human checkpoint**: review image analysis report on first day of each new shooting location. Calibrate the prompt if the model systematically miscategorizes your footage type.
+
+### Phase 4 -- Audio Analysis
+
+Per clip: LUFS integrated + momentary (flag < -30 LUFS or > -14 LUFS), pyannote VAD, openunmix music separation, speaker diarization, yamnet background noise classification (wind, traffic, crowd, AC hum), room tone candidates flagged (silence > 2 seconds). Runs in parallel with Phase 3. **API cost**: zero.
+
+### Phase 5 -- Narrative Detection
+
+Claude Opus (1M context window) ingests combined output of Phases 2-4 for an entire shooting day in one call. Returns: scene assignment per clip, narrative beat, possible edit connections, coverage gaps, continuity contradictions. Output: JSON scene map + markdown report at `reports/day-YYYY-MM-DD-narrative.md`. **Read this report before opening FCP. It is a map, not an instruction.** **API cost**: ~$0.50/day.
+
+### Phase 6 -- Council Review
+
+`film-indexer` runs each enriched clip through a multi-voice LLM editorial panel. Each voice scores 1-10 with 2-3 sentences of notes:
 
 - **Voice 1 (classical editing)**: narrative economy, rhythm, classical cutting logic
-- **Voice 2 (documentary verité)**: unscripted moments, authenticity, what cannot be repeated
-- **Voice 3 (visual rigor)**: image quality, compositional discipline, what should be cut without sentiment
-- **Voice 4 (investigative)**: factual value, evidentiary weight, what cannot be omitted
-- **Voice 5 (poetic)**: texture, off-screen space, duration, what works as silence
+- **Voice 2 (vérité)**: unscripted moments, authenticity, what cannot be repeated
+- **Voice 3 (visual rigor)**: image quality, compositional discipline
+- **Voice 4 (investigative)**: factual value, evidentiary weight
+- **Voice 5 (poetic)**: texture, off-screen space, duration, silence
 
-Voice weights can be adjusted per material type in the configuration file. For interview footage, investigative and verité voices carry higher weight. For texture and ambient footage, the poetic voice carries higher weight.
+Aggregated `council_score` (0-10): >= 7.5 → `select_A`, 5-7.5 → `select_B`, < 5 → `NG`. Voice weights configurable per material type. **Disagreeing with the council is encouraged. Adjust voice weights based on what it consistently misses.** **API cost**: ~$0.50/day.
 
-An aggregator (Claude Opus) combines scores into a `council_score` (0-10). Clips above 7.5 become `select_A`, between 5 and 7.5 `select_B`, below 5 are marked `NG` (no good). These ratings are written into the SQLite database and translated to FCP-compatible ratings (favorite/rejected) in Phase 7.
+### Phase 7 -- FCP Injection
 
-**Estimated time**: ~1 hour per day. **API cost**: ~$0.50/day, ~$100 over 200 days.
+Compiles Phases 0-6 into enriched FCPXML v1.11: `<keyword>` per clip, `<marker>` for takes/narrative beats/room tone candidates, `<rating>` (favorite/rejected), `<note>` (council synthesis + `director_second_look`), pre-assigned audio roles from Phase 4, keyword collections by day/scene/score tier.
 
-**Human checkpoint**: read the council report. Disagreeing with the council is encouraged. Adjust voice weights based on what the council consistently misses.
+**Critical rule**: Claude Code reads and proposes. A human executes write operations into `00_MASTER`. Batch clip swaps happen in a staging library, never directly in `00_MASTER`. The AI proposes the FCPXML; a human imports it. **API cost**: zero.
 
-#### Phase 7 -- FCP Injection
+### Phase 8 -- Semantic Query Interface
 
-**Human role replaced**: complete assistant editor function.
-
-Compiles output from Phases 0-6 into enriched FCPXML v1.11:
-
-- `<keyword>` per clip (image tags + audio tags from Phases 3-4)
-- `<marker>` for key moments (takes, narrative beats, room tone candidates)
-- `<rating>`: favorite (council score >= 7.5) or rejected (council score < 5)
-- `<note>`: council synthesis + `director_second_look` text
-- Pre-assigned roles (audio role assignment based on Phase 4 speaker diarization)
-- Automatic keyword collections by day, scene, and score tier
-
-Two injection modes:
-
-1. **FCPXML direct**: build a new FCPXML from the database and import into FCP.
-2. **SpliceKit MCP**: enrich an open FCP library directly (batch actions on existing clips, role assignment, marker placement).
-
-**Critical rule**: Claude Code reads and proposes. A human executes write operations into `00_MASTER`. Batch clip swaps involving graded material happen in a staging library, never directly in `00_MASTER`. The AI proposes the FCPXML; a human imports it.
-
-**Estimated time**: ~5 minutes per day. **API cost**: zero.
-
-#### Phase 8 -- Semantic Query Interface
-
-**Human role replaced**: the filmmaker's own long-term memory.
-
-With Pinecone populated by Phases 2, 3, 5, and 6, the filmmaker can query the entire rush archive in natural language from Claude Code.
-
-**Example queries**:
+Natural language queries across the entire rush archive from Claude Code:
 
 ```bash
-python pipeline/08_query.py "all shots where the subject speaks about their childhood with more than 3 seconds of silence before responding"
-python pipeline/08_query.py "exterior day shots, backlit, person on phone"
-python pipeline/08_query.py "usable room tones longer than 5 seconds"
-python pipeline/08_query.py "takes marked NG by the visual rigor voice but select by the poetic voice"
+python pipeline/08_query.py "all shots where subject speaks about childhood with 3+ seconds of silence before responding"
+python pipeline/08_query.py "exterior day, backlit, person on phone"
+python pipeline/08_query.py "room tones longer than 5 seconds"
+python pipeline/08_query.py "NG by visual rigor voice but select by poetic voice"
 ```
 
-The query engine uses a cascade: Pinecone multi-namespace search -> SQL filter -> Claude Opus reranking. Output is a markdown list with timecodes and a SpliceKit command to jump to the clip in FCP.
+Query cascade: Pinecone multi-namespace search → SQL filter → Claude Opus reranking. Output: markdown list with timecodes + SpliceKit command to jump to clip in FCP. **Cost per query**: ~$0.005.
 
-**Time per query**: 3-10 seconds. **API cost per query**: approximately $0.005.
-
-#### Pipeline Orchestration
-
-Wrapper script `pipeline/run_day.sh`:
-
-```bash
-#!/usr/bin/env bash
-set -euo pipefail
-DAY="${1:?YYYY-MM-DD date required}"
-
-python pipeline/00_inventory.py --since "$DAY" --until "$DAY"
-python pipeline/01_ingest.py --day "$DAY" --remote [gpu-workstation-hostname]
-python pipeline/02_transcribe.py --day "$DAY"
-python pipeline/03_image_analyze.py --day "$DAY" --model gemini-flash
-python pipeline/04_audio_analyze.py --day "$DAY" --remote [gpu-workstation-hostname]
-python pipeline/05_script_detection.py --day "$DAY" --model claude-opus
-python pipeline/06_council_review.py --day "$DAY"
-python pipeline/07_fcpxml_build.py --day "$DAY"
-```
-
-Trigger: a LaunchAgent (macOS) or systemd timer (Linux) watches the intake folder. New material that has been stable for 10 minutes triggers the pipeline. The filmmaker receives a notification (Telegram, system notification, or similar) when Phase 5 and Phase 6 reports are ready.
-
-#### Pipeline API Cost Summary
+### Pipeline Cost Summary
 
 | Phase | Cost/day | Total (200 days) | Time/day |
 |-------|----------|------------------|----------|
@@ -460,309 +482,127 @@ Trigger: a LaunchAgent (macOS) or systemd timer (Linux) watches the intake folde
 | 8 Queries | variable | ~$50 | N/A |
 | **Total** | **~$1.30** | **~$305** | **overnight** |
 
-#### Human Roles Replaced by the Pipeline
+### Human Roles Replaced
 
 | Human role | Replaced by | Phase(s) |
 |------------|-------------|----------|
-| Script supervisor / continuity | Gemini Flash vision + transcription regex | 2, 3 |
-| Assistant director (daily report) | Claude Opus narrative reader | 5 |
+| Script supervisor / continuity | Gemini Flash + transcription | 2, 3 |
+| Assistant director (daily report) | Claude Opus narrative | 5 |
 | Preliminary picture editor | Multi-voice LLM council | 6 |
-| Preliminary sound editor | pyannote + librosa + yamnet | 4 |
-| Dailies colorist | Gemini exposure flags + probe LUT | 3 |
-| Assistant editor | FCPXML builder + SpliceKit injection | 7 |
+| Preliminary sound editor | pyannote + yamnet | 4 |
+| Dailies colorist | Gemini exposure flags | 3 |
+| Assistant editor | FCPXML builder + SpliceKit | 7 |
 | Archivist | Pinecone + SQLite | 2, 3, 8 |
 | Script reader | Claude Opus scene detection | 5 |
-| Director second look | `director_second_look` field + poetic voice | 3, 6 |
-
-One human remains in the loop: the director, to read the Phase 5 and Phase 6 reports each morning, and to open FCP once Phase 7 is complete.
+| Director second look | `director_second_look` + poetic voice | 3, 6 |
 
 ---
 
-## Part III: Collaboration Protocols
-
-### Library Management (5 Editors, Divided Libraries)
-
-The divided library approach assigns each editor a specific thematic or temporal scope. Editors work in their assigned library; the merge assistant integrates changes into `00_MASTER`.
-
-**Example division for a multi-persona documentary** (adapt to your structure):
-
-| Library | Scope | Editor |
-|---------|-------|--------|
-| `00_MASTER.fcplibrary` | Locked master timeline | Merge assistant only |
-| `01_interview.fcplibrary` | Direct interview footage | Editor 1 |
-| `02_archives.fcplibrary` | Archival material | Editor 2 |
-| `03_reconstruction.fcplibrary` | Reconstruction sequences | Editor 3 |
-| `04_vfx.fcplibrary` | ComfyUI-generated visuals | Editor 4 |
-| `99_scratch.fcplibrary` | Liquid writing space | All (not merged) |
-
-**The scope must be genuinely watertight.** Interview footage should not appear in the archives library. Archive clips used in a reconstruction sequence should be imported from a shared read-only assets folder, not duplicated. Duplication of clips across libraries is the primary source of media location conflicts and version divergence.
-
-**Shared read-only assets** (`/04_assets/` on NAS): LUT files, Motion templates, graphics, music cue references. This folder is version-controlled separately. Changes are submitted as internal pull requests and applied by the merge assistant. No editor writes directly to `/04_assets/`.
-
-**Before first import: the Rolemap**
-
-Audio role contamination -- where interview audio ends up mislabeled as ambient, or VO is mixed with dialogue -- is one of the most common and difficult-to-repair failure modes in FCPXML-based collaboration. It propagates through imports and is nearly invisible until the sound mix.
-
-**Fix it before it happens.** Write and distribute the audio rolemap to all editors before the first import. Pin it in your communication tool.
-
-Example rolemap (adapt to your project):
-
-```
-Dialogue    → sync interview sound, direct address
-Ambient     → room tone, environmental sound, crowd
-Music       → score, source music, needle drops
-VO          → filmmaker narration, third-party narration
-FX          → effects, designed sound
-```
-
-All editors sign off on this document. The merge assistant checks role assignments on every FCPXML import. Mislabeled roles are corrected before merge, not after.
-
-### The 6th Role
-
-**This role is not optional on a 5-editor project lasting 20 months.**
-
-The lead editor cannot function simultaneously as merge integrator and creative editor. By month 6, the integration overhead will crowd out the editorial clarity that the lead is supposed to provide. By month 12, the project will be accumulating merge debt. By month 18, a fine cut that should have been achievable will be delayed by weeks of technical remediation.
-
-**The Merge Assistant** is a full-time role, not a part-time one:
-
-**Daily responsibilities:**
-
-- Run end-of-day sync: pull each editor's library updates from NAS, verify no partial writes
-- Run pre-merge diff: compare incoming FCPXML against `00_MASTER` snapshot before any import
-- Flag conflicts (two editors have worked on versions of the same archive clip) for human resolution
-- Import approved FCPXML updates into `00_MASTER`
-- Create dated snapshot of `00_MASTER` after each integration session
-
-**Weekly responsibilities:**
-
-- Verify fallback tools (see Part V: Fallback Strategy)
-- Review LOCKS.md for stale locks
-- Protocol review: are editors following the rolemap and scope rules?
-
-**Budget implication**: this is a salaried position for the duration of post-production. If budget does not allow it, the correct response is to reduce from 5 editors to 3 editors with genuinely watertight scope boundaries -- not to assign the role informally to the director.
-
-### Sync and Merge Workflow
-
-#### Daily Protocol
-
-1. Each editor works in their local library (NVMe shuttle). NAS copy is not the live working copy.
-2. End of day: editor syncs their local library to NAS (rsync, or dedicated sync tool).
-3. Merge assistant pulls from NAS, runs pre-push diff, verifies library integrity.
-4. Merge assistant creates a dated `00_MASTER` snapshot before importing.
-5. Merge assistant imports FCPXML from each editor's library into `00_MASTER`.
-6. Conflicts are flagged in LOCKS.md and resolved before the next working day.
-
-#### LOCKS.md Protocol
-
-`LOCKS.md` is a plain JSON file on the NAS:
-
-```json
-{
-  "2026-04-15T18:30:00": {
-    "clip_id": "A022-C003",
-    "locked_by": "Editor 2",
-    "reason": "Archive grading in progress",
-    "expected_release": "2026-04-16T10:00:00"
-  }
-}
-```
-
-Any editor who needs to work on a clip that appears in another library checks LOCKS.md first. Locks are released by the merge assistant after successful integration. When two editors have worked on conflicting versions of the same clip, the merge assistant has final authority on which version enters `00_MASTER`.
-
-#### Snapshots
-
-The merge assistant creates dated snapshots of `00_MASTER` before every FCPXML integration:
-
-```
-NAS:/[project]/snapshots/
-  2026-04-15T18:30-MASTER.fcpbundle.tar.gz
-  2026-04-14T19:15-MASTER.fcpbundle.tar.gz
-  ...
-```
-
-Retention: 30 days minimum. The snapshot represents the only reliable rollback mechanism if an FCPXML import corrupts the timeline. Snapshots older than 30 days are archived to cold storage (R2), not deleted.
-
-**FCPXML imports have a known failure mode: they can break compound clip references and role assignments in ways that are not immediately visible.** Without snapshots, a corrupt import discovered two weeks later has no clean recovery path.
-
----
-
-## Part IV: Delivery and Legal
+## Part V: Delivery and Legal
 
 ### Budget Blind Spots
 
-This section addresses the budget items most commonly absent from independent documentary production plans. These are not optional costs. They are costs that will be incurred; the only question is whether they are planned or discovered at the worst possible moment.
+These are not optional costs. They will be incurred. The only question is whether they are planned or discovered at the worst moment.
 
 | Budget line | Estimated range | Notes |
 |-------------|-----------------|-------|
 | E&O insurance | 15-35k EUR | Mandatory for US distribution, Netflix, broadcast sale |
-| Archive clearances (screenshots, streams, user-generated content) | Often exceeds software budget | Negotiate early; retroactive clearance is more expensive |
-| External fact-check | 5-15k EUR | Netflix requires it; documentary festivals increasingly require it |
-| QC delivery (Netflix IMF, 2-3 iterations typical) | 3-10k EUR per iteration | Budget for 3 iterations minimum |
-| Final mix (cinema) | 15-40k EUR | Depends on studio, mix format, and duration |
-| Music (composer, sync licenses, needle drops) | 10-50k EUR | Highly variable; clear rights before post-production begins |
-| Subtitles, SDH captions, audio description, closed captions | 5-15k EUR | Per language; required for accessibility compliance and most distributors |
+| Archive clearances (screenshots, streams, UGC) | Often exceeds software budget | Negotiate early; retroactive clearance is more expensive |
+| External fact-check | 5-15k EUR | Netflix requires it; festivals increasingly require it |
+| QC delivery (Netflix IMF, 2-3 iterations typical) | 3-10k EUR per iteration | Budget 3 iterations minimum |
+| Final mix (cinema) | 15-40k EUR | Depends on studio, format, duration |
+| Music (composer, sync licenses, needle drops) | 10-50k EUR | Clear rights before post-production begins |
+| Subtitles, SDH, audio description, closed captions | 5-15k EUR | Per language; required for accessibility and most distributors |
 | Long-term storage post-delivery (10 years of RAW) | 2-8k EUR | Often ignored until the drive fails |
-| Director time as producer-orchestrator | Not typically budgeted | This is a real cost absorbed by the filmmaker |
 | Contingency | 15-20% of total | Not optional |
 
-**Total potential gap between typical documentary budget and actual delivery cost**: 50-150k EUR, depending on scope and distribution ambition. Budget this before post-production begins, not after.
+**Total potential gap between typical documentary budget and actual delivery cost: 50-150k EUR.** Budget this before post-production begins, not after.
 
 ### E&O Insurance and Chain of Title
 
-E&O (Errors and Omissions) insurance is required by most US distributors and streaming platforms. It covers legal claims arising from the content of the film. Without it, you cannot sell the film to these markets.
-
-**Required documentation for E&O application:**
-
-- Chain of title for all owned elements (script, footage, music)
-- Release forms for all on-camera subjects and contributors
-- Clearance log for all third-party materials (archives, music, trademarks, web screenshots)
-- Fact-check documentation (who reviewed factual claims and when)
-- Errors and omissions memo from production lawyer
-
-**Do not begin post-production without consulting a media lawyer.** The time to identify chain-of-title gaps is before you spend 20 months editing. Retroactive clearances are expensive. Some cannot be obtained.
+Required by most US distributors and streaming platforms. Required documentation: chain of title for all owned elements, release forms for all on-camera subjects, clearance log for all third-party materials, fact-check documentation. **Consult a media lawyer before post-production begins.** The time to identify chain-of-title gaps is before you spend 20 months editing.
 
 ### Clearance Log
 
-Maintain a structured clearance log throughout production and post-production:
+Maintain throughout production and post-production:
 
 ```
-| Asset type | Source | Date acquired | Rights status | Cleared by | Notes |
-|-----------|--------|---------------|---------------|-----------|-------|
-| Forum screenshot | Archive.org | 2024-03-12 | Pending | [lawyer] | Need fair use memo |
-| Stream recording | [platform] | 2024-05-01 | Licensed | [rights holder] | Agreement in /legal/ |
+| Asset type | Source | Date acquired | Rights status | Notes |
+|-----------|--------|---------------|---------------|-------|
+| Forum screenshot | Archive.org | 2024-03-12 | Pending | Need fair use memo |
+| Stream recording | [platform] | 2024-05-01 | Licensed | Agreement in /legal/ |
 ```
-
-This log is a living document, maintained by the producer or an appointed clearance coordinator throughout post-production.
-
-### Fact-Check Protocol
-
-For documentaries making factual claims (dates, quotes, legal records, biographical information):
-
-1. A designated fact-checker reviews all factual claims before picture lock.
-2. The fact-check process is documented (what was checked, what sources were used, what was changed).
-
-Netflix and other streamers increasingly require this documentation as a delivery requirement. Building the protocol into your production workflow from the beginning is far less disruptive than retrofitting it at delivery.
-
-### Delivery Specifications
-
-Plan for three delivery formats from the beginning; the post-production pipeline should be built around all three simultaneously, not retrofitted for each in sequence.
-
-| Format | Specification |
-|--------|--------------|
-| Festival DCP | P3-D65 SDR, via Compressor 4.8 |
-| Streaming master | H.264 and H.265, Rec.709, via Compressor |
-| Netflix HDR | IMF package (SMPTE ST 2067), HDR10 or Dolby Vision, via DaVinci Resolve Studio |
-
-**The master grade strategy**: establish a single ACES 1.3 ACEScct master in DaVinci Resolve. Trim each delivery output via the appropriate ODT (Output Display Transform). This is the correct approach for multi-platform delivery; it avoids regrading from scratch for each deliverable.
-
-**Netflix delivery specifications change every 6 months.** Download the Netflix Partner Help Center delivery specification and lock the contractually required version in your delivery contract. Do not rely on what you knew from your last project.
 
 ### The 3-Month Buffer
 
-**Negotiate a 3-month buffer into your production contract before post-production begins.**
-
-This buffer exists because: if the shoot extends by even a few weeks, or if you need to return for additional photography at month 14, your picture lock slides by 3 months. The colorist-mixer-QC-IMF window, which should be 16 weeks, compresses to 8. At 8 weeks, either the quality suffers or the cost doubles (or both).
-
-The buffer costs nothing if you don't need it. It costs significantly more to negotiate it after the fact.
+Negotiate a 3-month buffer into your production contract before post-production begins. If the shoot extends by even a few weeks, or you need to return for additional photography at month 14, picture lock slides by 3 months. The colorist-mixer-QC-IMF window compresses from 16 weeks to 8. The buffer costs nothing if you don't need it.
 
 ---
 
-## Part V: Risk Management
+## Part VI: Risk Management
 
 ### SpliceKit Fallback Strategy
 
-SpliceKit depends on a patched dylib against private Apple APIs. The risk: a macOS update or FCP update could break the dylib at any point. This is not an abstract risk; it is a statistical certainty over a 20-month post-production.
+SpliceKit depends on a patched dylib against private Apple APIs. A macOS or FCP update breaking it is not abstract risk -- it is a statistical certainty over 20 months.
 
-**The mitigation is not to avoid SpliceKit. The mitigation is to never be dependent on it for delivery.**
+**Rule**: at any point in production, you must be able to deliver the film without SpliceKit. Test this now, not in fine cut.
 
-**Rule**: at any point in production, you must be able to deliver the film without SpliceKit. This scenario must be tested now, not in fine cut.
+**Fallback**: `fcpxml-mcp-server` (operates via FCPXML import/export, not FCP internals, slower but stable against Apple API changes).
 
-**Fallback: fcpxml-mcp-server** (a separate MCP server that operates via FCPXML import/export rather than direct FCP internals). It is slower and less capable than SpliceKit but does not depend on Apple private APIs.
+**Weekly fallback test** (performed by merge assistant):
+1. Open a mirror project maintained specifically for testing.
+2. Perform one representative task using only fcpxml-mcp-server.
+3. Verify result matches the SpliceKit result.
+4. Log in `logs/fallback-tests.md`.
 
-**Weekly fallback test protocol** (performed by the merge assistant):
-
-1. Open a mirror project (a copy of the current rough cut, maintained specifically for testing).
-2. Attempt to perform one representative task using only fcpxml-mcp-server (no SpliceKit).
-3. Verify the result matches the SpliceKit result.
-4. Log the test result in `logs/fallback-tests.md`.
-
-If the test fails: diagnose before the following week. Do not accumulate untested fallback debt.
-
-**SpliceKit failure response plan** (written and distributed to team):
-
-1. Switch immediately to fcpxml-mcp-server for all pipeline injection (Phase 7).
-2. All SpliceKit-specific queries (Phase 8 `seek_to_time`) become manual via timecode reference.
-3. Notify team within 24 hours of detection.
-4. Assess whether the break is temporary (update pending) or permanent (API removed).
-5. If permanent: evaluate PostLab or alternative collaboration tools.
+**SpliceKit failure response:**
+1. Switch immediately to fcpxml-mcp-server for Phase 7.
+2. Phase 8 `seek_to_time` queries become manual via timecode reference.
+3. Notify team within 24 hours.
+4. Assess if break is temporary (update pending) or permanent (API removed).
+5. If permanent: evaluate PostLab.
 
 ### Backup and Restore Testing
 
 **A backup that has not been restore-tested is not a backup.**
 
-The 3-2-1 rule (3 copies, 2 different media, 1 off-site) is necessary but not sufficient. What you need is a documented, tested restore procedure.
+**Monthly restore test protocol:**
+1. Select a `00_MASTER` snapshot from 30 days prior.
+2. Restore to a test machine without the current working media.
+3. Verify FCP can open the restored library and locate all media.
+4. Log in `logs/restore-tests.md`: date, snapshot restored, time to complete, issues encountered.
 
-**The restore test protocol:**
-
-1. Once per month, select one `00_MASTER` snapshot from 30 days prior.
-2. Attempt to restore it to a test machine that does not have the current working media.
-3. Verify that FCP can open the restored library and locate the media.
-4. Log the test result in `logs/restore-tests.md`: date, snapshot restored, time to complete, issues encountered.
-
-**What the restore test catches** (that backup monitoring misses):
-
-- Symlinks that point to paths that only exist on the primary machine
-- Media that is referenced in the library but was never backed up
-- FCP library database corruption that backed up silently
-- Proxy media that was purged but is still referenced
-
-If a restore test fails, you have discovered a backup gap before it became a disaster. Fix it immediately.
+This catches: symlinks that only exist on the primary machine, media referenced but never backed up, FCP library database corruption that backed up silently, proxy media purged but still referenced.
 
 ### Colorist Redundancy
 
-A single colorist is the most expensive single point of failure in documentary post-production. If the colorist becomes unavailable during fine cut -- illness, conflict with production, career change -- you have no Netflix HDR delivery path.
+A single colorist is the most expensive single point of failure. If they become unavailable during fine cut, there is no Netflix HDR delivery path.
 
 **Protocol:**
-
 1. Identify a backup colorist early in post-production.
-2. Contract the backup colorist to grade at least one test sequence (3-5 minutes) on the project within the first 6 months.
+2. Contract them to grade at least one test sequence (3-5 minutes) within the first 6 months.
 3. Verify they can reproduce the look from the primary colorist's CDL files.
-4. Keep the backup colorist informed of the project's progress at 6-month intervals.
+4. Keep them informed at 6-month intervals.
 
-"Identified" is not the same as "contracted and tested." The test sequence contract is the minimum acceptable standard.
+"Identified" is not the same as "contracted and tested."
 
-### ComfyUI Integration Risk
+### FCP Single-Vendor Risk
 
-AI-generated visuals (reconstruction sequences, experimental material) are one of the most fragile elements in a documentary post-production. The risk profile:
-
-- The GPU workstation running ComfyUI is a single point of failure for all AI visual generation.
-- ComfyUI custom node updates can break workflows without warning.
-- AI model providers can change API terms or retire models.
-
-**Mitigations:**
-
-- Lock ComfyUI custom node versions for each completed VFX sequence. Document which node versions were used.
-- Export finished AI visual sequences as ProRes masters immediately after approval. These masters are the deliverable; the ComfyUI workflow is the process.
-- Test all ComfyUI workflows on the backup GPU workstation (if available) before beginning significant generation.
-- Budget for regeneration: assume 20% of approved AI visual sequences will need to be regenerated due to technical failures.
-
----
+FCP runs only on macOS. Mitigation: maintain ACES working space throughout, keep all media in open formats (BRAW natives, ProRes proxies), export to FCPXML 1.10 regularly. Migration to Resolve or Premiere is painful but possible.
 
 ---
 
 ## Related Resources
 
-- [deep-research / the-timeline-becomes-readable](https://github.com/12georgiadis/deep-research/tree/main/10-the-timeline-becomes-readable) — philosophical essay on the SpliceKit / AI-orchestrated NLE paradigm shift
-- [deep-research / the-2026-editing-map](https://github.com/12georgiadis/deep-research/tree/main/11-the-2026-editing-map) — full NLE benchmark for 2026 (FCP, Resolve, Premiere, Avid, Blender VSE)
-- [fcp-workflow](https://github.com/12georgiadis/fcp-workflow) — reference FCP stack this blueprint extends
-- [film-indexer](https://github.com/12georgiadis/film-indexer) — multi-LLM editorial council tool for rush indexing (Phase 6)
-- [comfyui-cinema-pipeline](https://github.com/12georgiadis/comfyui-cinema-pipeline) — ComfyUI production pipeline documentation
-- [SpliceKit (elliotttate)](https://github.com/elliotttate/SpliceKit) — the dylib this pipeline's programmatic FCP layer depends on
+- [deep-research / the-timeline-becomes-readable](https://github.com/12georgiadis/deep-research/tree/main/10-the-timeline-becomes-readable) -- essay on the SpliceKit / AI-orchestrated NLE paradigm shift
+- [deep-research / the-2026-editing-map](https://github.com/12georgiadis/deep-research/tree/main/11-the-2026-editing-map) -- full NLE benchmark 2026: FCP, Resolve, Premiere, Avid, Blender VSE
+- [fcp-workflow](https://github.com/12georgiadis/fcp-workflow) -- reference FCP stack this blueprint extends
+- [film-indexer](https://github.com/12georgiadis/film-indexer) -- multi-LLM editorial council tool (Phase 6)
+- [comfyui-cinema-pipeline](https://github.com/12georgiadis/comfyui-cinema-pipeline) -- ComfyUI production pipeline documentation
+- [SpliceKit (elliotttate)](https://github.com/elliotttate/SpliceKit) -- the dylib this pipeline's programmatic FCP layer depends on
 
 ---
 
-## Credits
-
 Built in April 2026 by [Ismaël Joffroy Chandoutis](https://ismaeljoffroychandoutis.com/) (filmmaker, Paris) for one specific film. Published because it might be useful to someone else.
 
-Published under [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/).
+[CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/)
