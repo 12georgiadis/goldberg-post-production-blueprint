@@ -1,0 +1,12 @@
+cff-version: 1.2.0
+message: "If you use or cite this work, please credit it as below."
+title: "goldberg-post-production-blueprint"
+abstract: "A 5-person AI-assisted documentary post-production blueprint — FCP 12.2 + SpliceKit + Claude Code + Resolve + Pro Tools. Built for The Goldberg Variations (Villa Albertine / Films Grand Huit, 2026-2027). Published as reference for other indie docu teams."
+type: dataset
+authors:
+  - given-names: "Ismaël"
+    family-names: "Joffroy Chandoutis"
+    website: "https://github.com/12georgiadis"
+repository-code: "https://github.com/12georgiadis/goldberg-post-production-blueprint"
+url: "https://github.com/12georgiadis/goldberg-post-production-blueprint"
+license: CC-BY-NC-ND-4.0
